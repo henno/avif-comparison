@@ -2,6 +2,8 @@
 
 A web-based tool for comparing image compression formats (AVIF, WebP, PNG, JPEG) side-by-side with quality metrics.
 
+![Screenshot](screenshot.png)
+
 ## Features
 
 - **Multiple formats**: AVIF, WebP, PNGquant, cjpeg (libjpeg-turbo), OptiPNG
