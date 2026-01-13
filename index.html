@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Format Comparison Tool</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+        }
+        .controls {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            background: #16213e;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            z-index: 100;
+            flex-wrap: wrap;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        label { font-size: 13px; color: #aaa; }
+        select, input[type="number"] {
+            padding: 6px 10px;
+            border: none;
+            border-radius: 4px;
+            background: #0f3460;
+            color: #fff;
+            font-size: 13px;
+        }
+        input[type="range"] { width: 120px; cursor: pointer; }
+        .value-display {
+            background: #0f3460;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            min-width: 40px;
+            text-align: center;
+            font-size: 13px;
+        }
+        button {
+            background: #e94560;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 13px;
+        }
+        button:hover { background: #ff6b6b; }
+        button:disabled { background: #444; cursor: not-allowed; }
+        .comparison {
+            display: flex;
+            margin-top: 60px;
+            height: calc(100vh - 60px);
+        }
+        .panel {
+            flex: 1;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .panel-header {
+            text-align: center;
+            padding: 8px;
+            background: #16213e;
+            border-radius: 4px;
+            margin-bottom: 6px;
+        }
+        .panel-header h3 { font-size: 14px; color: #fff; margin-bottom: 4px; }
+        .panel-header .meta { font-size: 12px; color: #888; }
+        .panel-header .size { font-size: 16px; font-weight: bold; color: #4ade80; }
+        .image-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #0f0f1a;
+            border-radius: 4px;
+            overflow: auto;
+            position: relative;
+        }
+        .image-container img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            cursor: grab;
+            transform-origin: center center;
+            transition: none;
+        }
+        .image-container img.dragging {
+            cursor: grabbing;
+        }
+        .image-container {
+            overflow: hidden;
+        }
+        .spinner {
+            position: absolute;
+            width: 40px; height: 40px;
+            border: 3px solid #333;
+            border-top-color: #e94560;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .divider { width: 3px; background: #e94560; }
+        .good { color: #4ade80; }
+        .warn { color: #fbbf24; }
+        .bad { color: #f87171; }
+        .format-btns {
+            display: flex;
+            gap: 4px;
+        }
+        .format-btns button {
+            padding: 6px 12px;
+            font-size: 12px;
+            background: #0f3460;
+        }
+        .format-btns button.active {
+            background: #e94560;
+        }
+        .format-btns button:disabled {
+            opacity: 0.5;
+        }
+        .stats-row {
+            display: flex;
+            gap: 15px;
+            font-size: 12px;
+        }
+        .stats-row span { color: #888; }
+        .stats-row strong { color: #fff; }
+        #filename {
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 5px 15px;
+            border-radius: 4px;
+            font-size: 11px;
+            color: #666;
+        }
+        .compare-btn {
+            margin-top: 6px;
+            background: #4a5568;
+            padding: 4px 12px;
+            font-size: 11px;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .compare-btn:hover {
+            background: #718096;
+        }
+        .compare-btn:active, .compare-btn.active {
+            background: #e94560;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <div class="control-group">
+            <button onclick="prevImage()">&#9664;</button>
+            <button onclick="randomImage()">Random</button>
+            <button onclick="nextImage()">&#9654;</button>
+            <input type="number" id="img-num" min="1" max="500" value="1" style="width:55px" onchange="loadImage(this.value)">
+        </div>
+
+        <div class="control-group">
+            <label>Format:</label>
+            <div class="format-btns" id="format-btns">
+                <button data-fmt="avif" class="active">AVIF</button>
+                <button data-fmt="webp">WebP</button>
+                <button data-fmt="pngquant" id="btn-pngquant">PNGquant</button>
+                <button data-fmt="cjpeg" id="btn-cjpeg">cjpeg</button>
+                <button data-fmt="optipng" id="btn-optipng">OptiPNG</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>Quality:</label>
+            <input type="range" id="quality" min="10" max="100" step="5" value="50">
+            <span class="value-display" id="q-display">50</span>
+        </div>
+
+        <div class="stats-row">
+            <span>DSSIM: <strong id="dssim">-</strong></span>
+            <span>Savings: <strong id="savings">-</strong></span>
+            <span>Time: <strong id="time">-</strong></span>
+            <span>Zoom: <strong id="zoom-display">1x</strong></span>
+        </div>
+    </div>
+
+    <div class="comparison">
+        <div class="panel">
+            <div class="panel-header">
+                <h3>ORIGINAL</h3>
+                <div class="size" id="orig-size">-</div>
+                <div class="meta" id="orig-type">-</div>
+            </div>
+            <div class="image-container" id="orig-container">
+                <div class="spinner" id="orig-spinner" style="display:none"></div>
+                <img id="orig-img">
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="panel">
+            <div class="panel-header">
+                <h3 id="conv-title">AVIF Q50</h3>
+                <div class="size" id="conv-size">-</div>
+                <div class="meta" id="conv-meta">-</div>
+                <button id="compare-btn" class="compare-btn">Hold to Compare</button>
+            </div>
+            <div class="image-container" id="conv-container">
+                <div class="spinner" id="conv-spinner" style="display:none"></div>
+                <img id="conv-img">
+            </div>
+        </div>
+    </div>
+
+    <div id="filename">-</div>
+
+    <script>
+        let currentIndex = 1;
+        let currentFormat = 'avif';
+        let currentQuality = 50;
+        let currentExt = 'jpg';
+        let debounceTimer = null;
+        let convertAbortController = null;
+        let loadAbortController = null;
+
+        const qualitySlider = document.getElementById('quality');
+        const qDisplay = document.getElementById('q-display');
+
+        // URL state management
+        function updateURL() {
+            const params = new URLSearchParams();
+            params.set('i', currentIndex);
+            params.set('f', currentFormat);
+            params.set('q', currentQuality);
+            history.replaceState(null, '', '?' + params.toString());
+        }
+
+        function loadFromURL() {
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('i')) currentIndex = parseInt(params.get('i')) || 1;
+            if (params.has('f')) currentFormat = params.get('f');
+            if (params.has('q')) currentQuality = parseInt(params.get('q')) || 50;
+
+            // Update UI to match
+            document.getElementById('img-num').value = currentIndex;
+            qualitySlider.value = currentQuality;
+            qDisplay.textContent = currentQuality;
+            selectFormat(currentFormat);
+        }
+
+        // Format buttons
+        document.querySelectorAll('.format-btns button').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (btn.disabled) return;
+                document.querySelectorAll('.format-btns button').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentFormat = btn.dataset.fmt;
+                updateQualityRange();
+                updateURL();
+                convert();
+            });
+        });
+
+        // Quality slider
+        qualitySlider.addEventListener('input', () => {
+            currentQuality = parseInt(qualitySlider.value);
+            qDisplay.textContent = currentQuality;
+            updateURL();
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(convert, 200);
+        });
+
+        function updateQualityRange() {
+            if (currentFormat === 'optipng') {
+                qualitySlider.disabled = true;
+                qDisplay.textContent = 'N/A';
+            } else {
+                qualitySlider.disabled = false;
+                qDisplay.textContent = currentQuality;
+            }
+        }
+
+        function updateFormatButtons() {
+            const isPng = currentExt === 'png';
+            const isJpg = currentExt === 'jpg' || currentExt === 'jpeg';
+
+            document.getElementById('btn-pngquant').disabled = !isPng;
+            document.getElementById('btn-optipng').disabled = !isPng;
+            document.getElementById('btn-cjpeg').disabled = !isJpg;
+
+            // If current format is disabled, switch to avif
+            if ((currentFormat === 'pngquant' || currentFormat === 'optipng') && !isPng) {
+                selectFormat('avif');
+            }
+            if (currentFormat === 'cjpeg' && !isJpg) {
+                selectFormat('avif');
+            }
+        }
+
+        function selectFormat(fmt) {
+            document.querySelectorAll('.format-btns button').forEach(b => {
+                b.classList.toggle('active', b.dataset.fmt === fmt);
+            });
+            currentFormat = fmt;
+            updateQualityRange();
+        }
+
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+        }
+
+        async function loadImage(num) {
+            num = parseInt(num) || 1;
+            if (num < 1) num = 500;
+            if (num > 500) num = 1;
+            currentIndex = num;
+            document.getElementById('img-num').value = num;
+            updateURL();
+
+            // Cancel any pending requests
+            if (loadAbortController) loadAbortController.abort();
+            if (convertAbortController) convertAbortController.abort();
+            loadAbortController = new AbortController();
+
+            document.getElementById('orig-spinner').style.display = 'block';
+
+            try {
+                const res = await fetch(`api.php?action=get&i=${num}`, {
+                    signal: loadAbortController.signal
+                });
+                const data = await res.json();
+
+                // Check if we're still on this image (user may have navigated away)
+                if (num !== currentIndex) return;
+
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+
+                currentExt = data.ext;
+                updateFormatButtons();
+
+                const origImg = document.getElementById('orig-img');
+                origImg.onload = () => {
+                    document.getElementById('orig-spinner').style.display = 'none';
+                };
+                origImg.src = data.orig_url + '?t=' + Date.now();
+
+                document.getElementById('orig-size').textContent = formatSize(data.size);
+                document.getElementById('orig-type').textContent = data.ext.toUpperCase();
+                document.getElementById('filename').textContent = data.name;
+
+                // Pass the current index to avoid race conditions
+                convert(currentIndex);
+            } catch (e) {
+                if (e.name === 'AbortError') return; // Cancelled, ignore
+                console.error(e);
+                document.getElementById('orig-spinner').style.display = 'none';
+            }
+        }
+
+        async function convert(forIndex = null) {
+            // Use passed index or fall back to current (for format/quality changes)
+            const targetIndex = forIndex !== null ? forIndex : currentIndex;
+
+            // Cancel any pending convert request
+            if (convertAbortController) convertAbortController.abort();
+            convertAbortController = new AbortController();
+
+            document.getElementById('conv-spinner').style.display = 'block';
+            document.getElementById('conv-img').style.opacity = '0.3';
+
+            const title = currentFormat.toUpperCase() + (currentFormat !== 'optipng' ? ' Q' + currentQuality : '');
+            document.getElementById('conv-title').textContent = title;
+
+            const startTime = Date.now();
+
+            try {
+                const res = await fetch(`api.php?action=convert&i=${targetIndex}&format=${currentFormat}&q=${currentQuality}`, {
+                    signal: convertAbortController.signal
+                });
+                const data = await res.json();
+
+                // Check if we're still on the same image
+                if (targetIndex !== currentIndex) return;
+
+                const elapsed = Date.now() - startTime;
+
+                if (data.error) {
+                    document.getElementById('conv-size').textContent = 'Error';
+                    document.getElementById('conv-meta').textContent = data.error;
+                    document.getElementById('conv-spinner').style.display = 'none';
+                    document.getElementById('conv-img').style.opacity = '1';
+                    console.error(data);
+                    return;
+                }
+
+                const convImg = document.getElementById('conv-img');
+                convImg.onload = () => {
+                    document.getElementById('conv-spinner').style.display = 'none';
+                    convImg.style.opacity = '1';
+                };
+                convImg.src = data.url + '?t=' + Date.now();
+
+                document.getElementById('conv-size').textContent = formatSize(data.size);
+                document.getElementById('conv-size').className = 'size ' + (data.savings > 0 ? 'good' : 'bad');
+
+                document.getElementById('conv-meta').textContent =
+                    (data.savings >= 0 ? '-' : '+') + Math.abs(data.savings) + '% vs original';
+
+                // Stats
+                const dssimEl = document.getElementById('dssim');
+                if (data.dssim !== null) {
+                    dssimEl.textContent = data.dssim.toFixed(5);
+                    dssimEl.className = data.dssim < 0.005 ? 'good' : (data.dssim < 0.01 ? 'warn' : 'bad');
+                } else {
+                    dssimEl.textContent = '-';
+                }
+
+                const savingsEl = document.getElementById('savings');
+                savingsEl.textContent = (data.savings >= 0 ? '-' : '+') + Math.abs(data.savings) + '%';
+                savingsEl.className = data.savings > 50 ? 'good' : (data.savings > 20 ? 'warn' : 'bad');
+
+                document.getElementById('time').textContent = elapsed + 'ms';
+
+            } catch (e) {
+                if (e.name === 'AbortError') return; // Cancelled, ignore
+                console.error(e);
+                document.getElementById('conv-spinner').style.display = 'none';
+                document.getElementById('conv-img').style.opacity = '1';
+            }
+        }
+
+        function prevImage() { loadImage(currentIndex - 1); }
+        function nextImage() { loadImage(currentIndex + 1); }
+        function randomImage() { loadImage(Math.floor(Math.random() * 500) + 1); }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', e => {
+            if (e.target.tagName === 'INPUT') return;
+            if (e.key === 'ArrowLeft') prevImage();
+            if (e.key === 'ArrowRight') nextImage();
+            if (e.key === 'r') randomImage();
+            if (e.key === 'ArrowUp') {
+                qualitySlider.value = Math.min(100, parseInt(qualitySlider.value) + 5);
+                qualitySlider.dispatchEvent(new Event('input'));
+            }
+            if (e.key === 'ArrowDown') {
+                qualitySlider.value = Math.max(10, parseInt(qualitySlider.value) - 5);
+                qualitySlider.dispatchEvent(new Event('input'));
+            }
+            if (e.key === 'z' || e.key === 'Z') {
+                resetZoom();
+            }
+        });
+
+        // Zoom and pan state
+        let zoomLevel = 1;
+        let panX = 0;
+        let panY = 0;
+        let isDragging = false;
+        let dragStartX = 0;
+        let dragStartY = 0;
+        let lastPanX = 0;
+        let lastPanY = 0;
+
+        const origImg = document.getElementById('orig-img');
+        const convImg = document.getElementById('conv-img');
+        const origContainer = document.getElementById('orig-container');
+        const convContainer = document.getElementById('conv-container');
+
+        function updateTransform() {
+            const transform = `scale(${zoomLevel}) translate(${panX}px, ${panY}px)`;
+            origImg.style.transform = transform;
+            convImg.style.transform = transform;
+            document.getElementById('zoom-display').textContent = zoomLevel.toFixed(1) + 'x';
+        }
+
+        function resetZoom() {
+            zoomLevel = 1;
+            panX = 0;
+            panY = 0;
+            updateTransform();
+        }
+
+        // Wheel zoom (works with touchpad pinch and mouse wheel)
+        function handleWheel(e) {
+            e.preventDefault();
+
+            // Pinch zoom on touchpad sends ctrlKey with wheel events
+            const delta = e.deltaY * -0.01;
+            const newZoom = Math.min(10, Math.max(1, zoomLevel + delta * zoomLevel * 0.5));
+
+            if (newZoom !== zoomLevel) {
+                // Get mouse position relative to container
+                const rect = e.currentTarget.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left - rect.width / 2;
+                const mouseY = e.clientY - rect.top - rect.height / 2;
+
+                // Adjust pan to zoom toward mouse position
+                const zoomRatio = newZoom / zoomLevel;
+                panX = panX * zoomRatio - mouseX * (zoomRatio - 1) / newZoom;
+                panY = panY * zoomRatio - mouseY * (zoomRatio - 1) / newZoom;
+
+                zoomLevel = newZoom;
+
+                // Reset pan if zoomed out to 1
+                if (zoomLevel === 1) {
+                    panX = 0;
+                    panY = 0;
+                }
+
+                updateTransform();
+            }
+        }
+
+        // Mouse drag for panning
+        function handleMouseDown(e) {
+            if (zoomLevel > 1) {
+                isDragging = true;
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+                lastPanX = panX;
+                lastPanY = panY;
+                origImg.classList.add('dragging');
+                convImg.classList.add('dragging');
+                e.preventDefault();
+            }
+        }
+
+        function handleMouseMove(e) {
+            if (isDragging) {
+                const dx = (e.clientX - dragStartX) / zoomLevel;
+                const dy = (e.clientY - dragStartY) / zoomLevel;
+                panX = lastPanX + dx;
+                panY = lastPanY + dy;
+                updateTransform();
+            }
+        }
+
+        function handleMouseUp() {
+            isDragging = false;
+            origImg.classList.remove('dragging');
+            convImg.classList.remove('dragging');
+        }
+
+        // Touch pinch zoom
+        let lastTouchDist = 0;
+        let lastTouchCenter = { x: 0, y: 0 };
+
+        function getTouchDistance(touches) {
+            const dx = touches[0].clientX - touches[1].clientX;
+            const dy = touches[0].clientY - touches[1].clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        function getTouchCenter(touches) {
+            return {
+                x: (touches[0].clientX + touches[1].clientX) / 2,
+                y: (touches[0].clientY + touches[1].clientY) / 2
+            };
+        }
+
+        function handleTouchStart(e) {
+            if (e.touches.length === 2) {
+                lastTouchDist = getTouchDistance(e.touches);
+                lastTouchCenter = getTouchCenter(e.touches);
+                lastPanX = panX;
+                lastPanY = panY;
+                e.preventDefault();
+            } else if (e.touches.length === 1 && zoomLevel > 1) {
+                isDragging = true;
+                dragStartX = e.touches[0].clientX;
+                dragStartY = e.touches[0].clientY;
+                lastPanX = panX;
+                lastPanY = panY;
+            }
+        }
+
+        function handleTouchMove(e) {
+            if (e.touches.length === 2) {
+                const dist = getTouchDistance(e.touches);
+                const center = getTouchCenter(e.touches);
+                const scale = dist / lastTouchDist;
+                const newZoom = Math.min(10, Math.max(1, zoomLevel * scale));
+
+                if (newZoom !== zoomLevel) {
+                    zoomLevel = newZoom;
+                    if (zoomLevel === 1) {
+                        panX = 0;
+                        panY = 0;
+                    }
+                    updateTransform();
+                }
+
+                lastTouchDist = dist;
+                lastTouchCenter = center;
+                e.preventDefault();
+            } else if (e.touches.length === 1 && isDragging) {
+                const dx = (e.touches[0].clientX - dragStartX) / zoomLevel;
+                const dy = (e.touches[0].clientY - dragStartY) / zoomLevel;
+                panX = lastPanX + dx;
+                panY = lastPanY + dy;
+                updateTransform();
+                e.preventDefault();
+            }
+        }
+
+        function handleTouchEnd() {
+            isDragging = false;
+            lastTouchDist = 0;
+        }
+
+        // Attach event listeners to both containers
+        [origContainer, convContainer].forEach(container => {
+            container.addEventListener('wheel', handleWheel, { passive: false });
+            container.addEventListener('mousedown', handleMouseDown);
+            container.addEventListener('touchstart', handleTouchStart, { passive: false });
+            container.addEventListener('touchmove', handleTouchMove, { passive: false });
+            container.addEventListener('touchend', handleTouchEnd);
+        });
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+
+        // Reset zoom when loading new image
+        const originalLoadImage = loadImage;
+        loadImage = async function(num) {
+            resetZoom();
+            return originalLoadImage(num);
+        };
+
+        // Double-click to reset zoom
+        [origContainer, convContainer].forEach(container => {
+            container.addEventListener('dblclick', resetZoom);
+        });
+
+        // Hold to compare - temporarily show original on right side
+        const compareBtn = document.getElementById('compare-btn');
+        let savedConvSrc = '';
+
+        function showOriginal() {
+            savedConvSrc = convImg.src;
+            convImg.src = origImg.src;
+            compareBtn.classList.add('active');
+        }
+
+        function showConverted() {
+            if (savedConvSrc) {
+                convImg.src = savedConvSrc;
+            }
+            compareBtn.classList.remove('active');
+        }
+
+        compareBtn.addEventListener('mousedown', showOriginal);
+        compareBtn.addEventListener('mouseup', showConverted);
+        compareBtn.addEventListener('mouseleave', showConverted);
+        compareBtn.addEventListener('touchstart', (e) => { e.preventDefault(); showOriginal(); });
+        compareBtn.addEventListener('touchend', showConverted);
+
+        // Also allow spacebar to toggle compare when not in input
+        document.addEventListener('keydown', e => {
+            if (e.target.tagName === 'INPUT') return;
+            if (e.code === 'Space') {
+                e.preventDefault();
+                showOriginal();
+            }
+        });
+        document.addEventListener('keyup', e => {
+            if (e.target.tagName === 'INPUT') return;
+            if (e.code === 'Space') {
+                showConverted();
+            }
+        });
+
+        // Init - load from URL or random
+        if (window.location.search.includes('i=')) {
+            loadFromURL();
+            loadImage(currentIndex);
+        } else {
+            randomImage();
+        }
+    </script>
+</body>
+</html>
