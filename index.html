@@ -215,6 +215,16 @@
             opacity: 1;
             visibility: visible;
         }
+        .controls .tooltip-target::after {
+            top: calc(100% + 10px);
+            bottom: auto;
+        }
+        .controls .tooltip-target::before {
+            top: calc(100% + 4px);
+            bottom: auto;
+            border-top-color: transparent;
+            border-bottom-color: #000;
+        }
         @media (max-width: 800px) {
             .tooltip-target::after {
                 max-width: min(220px, 80vw);
