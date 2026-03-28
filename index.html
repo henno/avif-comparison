@@ -138,9 +138,33 @@
             display: flex;
             gap: 15px;
             font-size: 12px;
+            flex-wrap: wrap;
         }
         .stats-row span { color: #888; }
         .stats-row strong { color: #fff; }
+        .cli-box {
+            flex: 1 1 100%;
+            display: block;
+            margin-top: 2px;
+            padding: 10px 12px;
+            border-radius: 6px;
+            background: rgba(6, 11, 24, 0.92);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: #9fb0cc;
+            line-height: 1.45;
+        }
+        .cli-box strong {
+            color: #fff;
+        }
+        .cli-box code {
+            display: block;
+            margin-top: 6px;
+            color: #f8fafc;
+            font-size: 11px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        }
         #filename {
             position: fixed;
             bottom: 10px;
@@ -285,6 +309,10 @@
             <span>Savings: <strong id="savings">-</strong></span>
             <span>Time: <strong id="time">-</strong></span>
             <span>Zoom: <strong id="zoom-display">1x</strong></span>
+            <span class="cli-box">
+                <strong>Bulk CLI</strong>
+                <code id="bulk-cli">-</code>
+            </span>
         </div>
     </div>
 
@@ -362,6 +390,7 @@
                 btn.classList.add('active');
                 currentFormat = btn.dataset.fmt;
                 updateQualityRange();
+                updateBulkCli();
                 updateURL();
                 convert();
             });
@@ -371,6 +400,7 @@
         qualitySlider.addEventListener('input', () => {
             currentQuality = parseInt(qualitySlider.value);
             qDisplay.textContent = currentQuality;
+            updateBulkCli();
             updateURL();
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(convert, 200);
@@ -409,12 +439,41 @@
             });
             currentFormat = fmt;
             updateQualityRange();
+            updateBulkCli();
         }
 
         function formatSize(bytes) {
             if (bytes < 1024) return bytes + ' B';
             if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
             return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+        }
+
+        function buildBulkCliCommand() {
+            const inputDir = 'INPUT_DIR';
+            const outputDir = 'OUTPUT_DIR';
+            const allImages = `find ${inputDir} -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \) -print0`;
+            const jpegImages = `find ${inputDir} -type f \( -iname "*.jpg" -o -iname "*.jpeg" \) -print0`;
+            const pngImages = `find ${inputDir} -type f -iname "*.png" -print0`;
+            const loopPrefix = ` | while IFS= read -r -d '' file; do rel="\${file#${inputDir}/}"; mkdir -p "${outputDir}/$(dirname "$rel")"; `;
+
+            switch (currentFormat) {
+                case 'avif':
+                    return allImages + loopPrefix + `avifenc -q ${currentQuality} -s 6 "$file" "${outputDir}/\${rel%.*}.avif"; done`;
+                case 'webp':
+                    return allImages + loopPrefix + `cwebp -q ${currentQuality} "$file" -o "${outputDir}/\${rel%.*}.webp"; done`;
+                case 'pngquant':
+                    return pngImages + loopPrefix + `pngquant --quality=${Math.max(0, currentQuality - 10)}-${currentQuality} --force --output "${outputDir}/$rel" "$file"; done`;
+                case 'cjpeg':
+                    return jpegImages + loopPrefix + `djpeg "$file" | cjpeg -quality ${currentQuality} -optimize -outfile "${outputDir}/\${rel%.*}.jpg"; done`;
+                case 'optipng':
+                    return pngImages + loopPrefix + `cp "$file" "${outputDir}/$rel" && optipng -o2 "${outputDir}/$rel"; done`;
+                default:
+                    return '-';
+            }
+        }
+
+        function updateBulkCli() {
+            document.getElementById('bulk-cli').textContent = buildBulkCliCommand();
         }
 
         async function loadImage(num) {
@@ -448,6 +507,7 @@
 
                 currentExt = data.ext;
                 updateFormatButtons();
+                updateBulkCli();
 
                 const origImg = document.getElementById('orig-img');
                 origImg.onload = () => {
@@ -783,6 +843,7 @@
         });
 
         // Init - load from URL or random
+        updateBulkCli();
         if (window.location.search.includes('i=')) {
             loadFromURL();
             loadImage(currentIndex);
