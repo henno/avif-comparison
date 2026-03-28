@@ -19,29 +19,82 @@ if (!is_dir($cacheDir)) mkdir($cacheDir, 0775, true);
 function getImageList() {
     global $uploadsDir;
     $listFile = __DIR__ . '/image_list.json';
+    $lockFile = __DIR__ . '/image_list.lock';
 
     if (file_exists($listFile) && filemtime($listFile) > time() - 3600) {
-        return json_decode(file_get_contents($listFile), true);
-    }
-
-    $images = [];
-    $iter = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($uploadsDir, RecursiveDirectoryIterator::SKIP_DOTS)
-    );
-
-    foreach ($iter as $file) {
-        if ($file->isFile() && $file->getSize() > 20000) {
-            $ext = strtolower($file->getExtension());
-            if (in_array($ext, ['jpg', 'jpeg', 'png'])) {
-                $images[] = $file->getPathname();
+        $raw = file_get_contents($listFile);
+        if ($raw !== false) {
+            $cached = json_decode($raw, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($cached) && !empty($cached)) {
+                return $cached;
             }
         }
     }
 
-    shuffle($images);
-    $images = array_slice($images, 0, 500);
-    file_put_contents($listFile, json_encode($images));
-    return $images;
+    $lockHandle = fopen($lockFile, 'c');
+    if ($lockHandle === false) {
+        throw new RuntimeException('Unable to open image list lock file');
+    }
+
+    try {
+        if (!flock($lockHandle, LOCK_EX)) {
+            throw new RuntimeException('Unable to lock image list cache');
+        }
+
+        clearstatcache(true, $listFile);
+        if (file_exists($listFile) && filemtime($listFile) > time() - 3600) {
+            $raw = file_get_contents($listFile);
+            if ($raw !== false) {
+                $cached = json_decode($raw, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($cached) && !empty($cached)) {
+                    return $cached;
+                }
+            }
+        }
+
+        $images = [];
+        $iter = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($uploadsDir, RecursiveDirectoryIterator::SKIP_DOTS)
+        );
+
+        foreach ($iter as $file) {
+            if ($file->isFile() && $file->getSize() > 20000) {
+                $ext = strtolower($file->getExtension());
+                if (in_array($ext, ['jpg', 'jpeg', 'png'])) {
+                    $images[] = $file->getPathname();
+                }
+            }
+        }
+
+        shuffle($images);
+        $images = array_slice($images, 0, 500);
+
+        $json = json_encode($images);
+        if ($json === false) {
+            throw new RuntimeException('Unable to encode image list cache');
+        }
+
+        $tmpFile = tempnam(__DIR__, 'image_list.');
+        if ($tmpFile === false) {
+            throw new RuntimeException('Unable to create temp cache file');
+        }
+
+        $written = file_put_contents($tmpFile, $json, LOCK_EX);
+        if ($written !== strlen($json)) {
+            @unlink($tmpFile);
+            throw new RuntimeException('Unable to write complete image list cache');
+        }
+
+        if (!rename($tmpFile, $listFile)) {
+            @unlink($tmpFile);
+            throw new RuntimeException('Unable to replace image list cache');
+        }
+
+        return $images;
+    } finally {
+        flock($lockHandle, LOCK_UN);
+        fclose($lockHandle);
+    }
 }
 
 function formatSize($bytes) {
