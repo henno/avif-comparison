@@ -138,9 +138,33 @@
             display: flex;
             gap: 15px;
             font-size: 12px;
+            flex-wrap: wrap;
         }
         .stats-row span { color: #888; }
         .stats-row strong { color: #fff; }
+        .cli-box {
+            flex: 1 1 100%;
+            display: block;
+            margin-top: 2px;
+            padding: 10px 12px;
+            border-radius: 6px;
+            background: rgba(6, 11, 24, 0.92);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: #9fb0cc;
+            line-height: 1.45;
+        }
+        .cli-box strong {
+            color: #fff;
+        }
+        .cli-box code {
+            display: block;
+            margin-top: 6px;
+            color: #f8fafc;
+            font-size: 11px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        }
         #filename {
             position: fixed;
             bottom: 10px;
@@ -166,32 +190,118 @@
         .compare-btn:active, .compare-btn.active {
             background: #e94560;
         }
+        .tooltip-target {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+        }
+        .tooltip-target::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            left: 50%;
+            bottom: calc(100% + 10px);
+            transform: translateX(-50%);
+            background: #000;
+            color: #fff;
+            padding: 8px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            line-height: 1.35;
+            white-space: normal;
+            width: max-content;
+            max-width: 220px;
+            text-align: center;
+            pointer-events: none;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.15s ease;
+            z-index: 300;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+        }
+        .tooltip-target::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            bottom: calc(100% + 4px);
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: #000;
+            pointer-events: none;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.15s ease;
+            z-index: 301;
+        }
+        .tooltip-target:hover::after,
+        .tooltip-target:hover::before,
+        .tooltip-target:focus-within::after,
+        .tooltip-target:focus-within::before {
+            opacity: 1;
+            visibility: visible;
+        }
+        .controls .tooltip-target::after {
+            top: calc(100% + 10px);
+            bottom: auto;
+        }
+        .controls .tooltip-target::before {
+            top: calc(100% + 4px);
+            bottom: auto;
+            border-top-color: transparent;
+            border-bottom-color: #000;
+        }
+        @media (max-width: 800px) {
+            .tooltip-target::after {
+                max-width: min(220px, 80vw);
+            }
+        }
     </style>
 </head>
 <body>
     <div class="controls">
         <div class="control-group">
-            <button onclick="prevImage()">&#9664;</button>
-            <button onclick="randomImage()">Random</button>
-            <button onclick="nextImage()">&#9654;</button>
-            <input type="number" id="img-num" min="1" max="500" value="1" style="width:55px" onchange="loadImage(this.value)">
+            <span class="tooltip-target" data-tooltip="Go to the previous sample image.">
+                <button onclick="prevImage()">&#9664;</button>
+            </span>
+            <span class="tooltip-target" data-tooltip="Jump to a random sample image so you can explore different examples quickly.">
+                <button onclick="randomImage()">Random</button>
+            </span>
+            <span class="tooltip-target" data-tooltip="Go to the next sample image.">
+                <button onclick="nextImage()">&#9654;</button>
+            </span>
+            <span class="tooltip-target" data-tooltip="Type an image number from 1 to 500 to open that sample directly.">
+                <input type="number" id="img-num" min="1" max="500" value="1" style="width:55px" onchange="loadImage(this.value)">
+            </span>
         </div>
 
         <div class="control-group">
             <label>Format:</label>
             <div class="format-btns" id="format-btns">
-                <button data-fmt="avif" class="active">AVIF</button>
-                <button data-fmt="webp">WebP</button>
-                <button data-fmt="pngquant" id="btn-pngquant">PNGquant</button>
-                <button data-fmt="cjpeg" id="btn-cjpeg">cjpeg</button>
-                <button data-fmt="optipng" id="btn-optipng">OptiPNG</button>
+                <span class="tooltip-target" data-tooltip="Convert the image to AVIF, a modern format that usually gives very small file sizes.">
+                    <button data-fmt="avif" class="active">AVIF</button>
+                </span>
+                <span class="tooltip-target" data-tooltip="Convert the image to WebP, another modern format that balances quality and size well.">
+                    <button data-fmt="webp">WebP</button>
+                </span>
+                <span class="tooltip-target" data-tooltip="Compress a PNG using PNGquant. This works only when the original image is a PNG.">
+                    <button data-fmt="pngquant" id="btn-pngquant">PNGquant</button>
+                </span>
+                <span class="tooltip-target" data-tooltip="Re-encode a JPEG with cjpeg. This works only when the original image is a JPEG.">
+                    <button data-fmt="cjpeg" id="btn-cjpeg">cjpeg</button>
+                </span>
+                <span class="tooltip-target" data-tooltip="Optimize a PNG with OptiPNG. This works only when the original image is a PNG.">
+                    <button data-fmt="optipng" id="btn-optipng">OptiPNG</button>
+                </span>
             </div>
         </div>
 
         <div class="control-group">
             <label>Quality:</label>
-            <input type="range" id="quality" min="10" max="100" step="5" value="50">
-            <span class="value-display" id="q-display">50</span>
+            <span class="tooltip-target" data-tooltip="Move the slider to trade file size for visual quality. Higher values usually look better but produce larger files.">
+                <input type="range" id="quality" min="10" max="100" step="5" value="50">
+            </span>
+            <span class="tooltip-target" data-tooltip="Shows the current quality value used for the selected format.">
+                <span class="value-display" id="q-display">50</span>
+            </span>
         </div>
 
         <div class="stats-row">
@@ -199,6 +309,10 @@
             <span>Savings: <strong id="savings">-</strong></span>
             <span>Time: <strong id="time">-</strong></span>
             <span>Zoom: <strong id="zoom-display">1x</strong></span>
+            <span class="cli-box">
+                <strong>Bulk CLI</strong>
+                <code id="bulk-cli">-</code>
+            </span>
         </div>
     </div>
 
@@ -210,7 +324,7 @@
                 <div class="meta" id="orig-type">-</div>
                 <div class="compare-btn" style="visibility:hidden">Hold to Compare</div>
             </div>
-            <div class="image-container" id="orig-container">
+            <div class="image-container tooltip-target" id="orig-container" data-tooltip="This is the original image. Use your mouse wheel or trackpad to zoom, drag to pan when zoomed in, and double-click to reset zoom.">
                 <div class="spinner" id="orig-spinner" style="display:none"></div>
                 <img id="orig-img">
             </div>
@@ -223,9 +337,9 @@
                 <h3 id="conv-title">AVIF Q50</h3>
                 <div class="size" id="conv-size">-</div>
                 <div class="meta" id="conv-meta">-</div>
-                <button id="compare-btn" class="compare-btn">Hold to Compare</button>
+                <span class="tooltip-target" data-tooltip="Hold this button to temporarily show the original image on the right so you can compare details more easily."><button id="compare-btn" class="compare-btn">Hold to Compare</button></span>
             </div>
-            <div class="image-container" id="conv-container">
+            <div class="image-container tooltip-target" id="conv-container" data-tooltip="This is the converted image. Use your mouse wheel or trackpad to zoom, drag to pan when zoomed in, and double-click to reset zoom.">
                 <div class="spinner" id="conv-spinner" style="display:none"></div>
                 <img id="conv-img">
             </div>
@@ -276,6 +390,7 @@
                 btn.classList.add('active');
                 currentFormat = btn.dataset.fmt;
                 updateQualityRange();
+                updateBulkCli();
                 updateURL();
                 convert();
             });
@@ -285,6 +400,7 @@
         qualitySlider.addEventListener('input', () => {
             currentQuality = parseInt(qualitySlider.value);
             qDisplay.textContent = currentQuality;
+            updateBulkCli();
             updateURL();
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(convert, 200);
@@ -323,12 +439,41 @@
             });
             currentFormat = fmt;
             updateQualityRange();
+            updateBulkCli();
         }
 
         function formatSize(bytes) {
             if (bytes < 1024) return bytes + ' B';
             if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
             return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+        }
+
+        function buildBulkCliCommand() {
+            const inputDir = 'INPUT_DIR';
+            const outputDir = 'OUTPUT_DIR';
+            const allImages = `find ${inputDir} -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \) -print0`;
+            const jpegImages = `find ${inputDir} -type f \( -iname "*.jpg" -o -iname "*.jpeg" \) -print0`;
+            const pngImages = `find ${inputDir} -type f -iname "*.png" -print0`;
+            const loopPrefix = ` | while IFS= read -r -d '' file; do rel="\${file#${inputDir}/}"; mkdir -p "${outputDir}/$(dirname "$rel")"; `;
+
+            switch (currentFormat) {
+                case 'avif':
+                    return allImages + loopPrefix + `avifenc -q ${currentQuality} -s 6 "$file" "${outputDir}/\${rel%.*}.avif"; done`;
+                case 'webp':
+                    return allImages + loopPrefix + `cwebp -q ${currentQuality} "$file" -o "${outputDir}/\${rel%.*}.webp"; done`;
+                case 'pngquant':
+                    return pngImages + loopPrefix + `pngquant --quality=${Math.max(0, currentQuality - 10)}-${currentQuality} --force --output "${outputDir}/$rel" "$file"; done`;
+                case 'cjpeg':
+                    return jpegImages + loopPrefix + `djpeg "$file" | cjpeg -quality ${currentQuality} -optimize -outfile "${outputDir}/\${rel%.*}.jpg"; done`;
+                case 'optipng':
+                    return pngImages + loopPrefix + `cp "$file" "${outputDir}/$rel" && optipng -o2 "${outputDir}/$rel"; done`;
+                default:
+                    return '-';
+            }
+        }
+
+        function updateBulkCli() {
+            document.getElementById('bulk-cli').textContent = buildBulkCliCommand();
         }
 
         async function loadImage(num) {
@@ -362,6 +507,7 @@
 
                 currentExt = data.ext;
                 updateFormatButtons();
+                updateBulkCli();
 
                 const origImg = document.getElementById('orig-img');
                 origImg.onload = () => {
@@ -697,6 +843,7 @@
         });
 
         // Init - load from URL or random
+        updateBulkCli();
         if (window.location.search.includes('i=')) {
             loadFromURL();
             loadImage(currentIndex);
